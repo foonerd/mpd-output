@@ -470,7 +470,7 @@ MpdOutput.prototype.updateConfigIce = function (data) {
         (!data.iceservername || !String(data.iceservername).trim() ? self.i18n('ERR_HOST') : null) ||
         checkPort(self, data.icepublishport, 'ICE_PORT') ||
         checkPort(self, data.icefeedport, 'ICE_FEED_PORT') ||
-        (!/^\/\S+$/.test(String(data.icemountp || '').trim()) ? self.i18n('ERR_MOUNT') : null) ||
+        (!/^\/\S*$/.test(String(data.icemountp || '').trim()) ? self.i18n('ERR_MOUNT') : null) ||
         (!data.icepassword ? self.i18n('ERR_PASSWORD') : null) ||
         checkText(self, data.icestreamname, 'ICE_NAME') ||
         (data.iceadd === true && (

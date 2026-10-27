@@ -1,6 +1,6 @@
 # MPD HTTP & Icecast output
 
-A Volumio 4 plugin that streams what the player is playing: as an HTTP stream served from the player, to an Icecast server, or both.
+A Volumio plugin (Volumio 3 and 4) that streams what the player is playing: as an HTTP stream served from the player, to an Icecast server, or both.
 
 Store name: `mpdoutput` (category `audio_interface`). Existing installations upgrade in place and keep their settings.
 
@@ -47,7 +47,9 @@ The MPD outputs are contributed through Volumio's own MPD configuration writer, 
 
 ## Requirements
 
-Volumio 4 (bookworm) with MPD built with the `httpd` output plugin (every Volumio 4 image qualifies). Icecast 2.4 or later for the Icecast stream; the SHOUTcast and Icecast 1 source protocols are not supported.
+Volumio 3 (buster, Node 14) or Volumio 4 (bookworm, Node 20) with MPD built with the `httpd` output plugin (every Volumio image qualifies). Icecast 2.4 or later for the Icecast stream; the SHOUTcast and Icecast 1 source protocols are not supported.
+
+Titles are sent to the server as UTF-8. For MP3 mounts Icecast re-encodes them to the mount's charset, which defaults to ISO-8859-1; to keep characters outside that set (for example Polish diacritics), set `<charset>UTF-8</charset>` on the mount in the server's configuration. Ogg mounts carry UTF-8 natively.
 
 ## Development
 
