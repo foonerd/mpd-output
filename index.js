@@ -51,15 +51,28 @@ MpdOutput.prototype.onStart = function () {
     self.registerMpdHook();
     self.migrateLegacySettings();
 
-    const run = self.mpdConfIsCurrent() ? libQ.resolve() : self.rewriteMpdConf();
-    return run
-        .then(() => self.applyRelay())
-        .fail((e) => {
+    // At boot the MPD plugin writes mpd.conf itself (with this hook in it) and restarts MPD;
+    // checking before that write has landed would restart MPD a second time. Wait for the
+    // boot to complete, then verify. Enabled at runtime, the status is already 'ready'.
+    self.whenBootCompleted().then(() => {
+        if (!self.active || self.mpdConfIsCurrent()) return;
+        self.rewriteMpdConf().fail((e) => {
             self.logger.error(LOG + 'start: ' + (e && e.message ? e.message : e));
-            // A failed MPD rewrite must not keep the plugin from starting; the user sees the toast.
-            return self.applyRelay();
-        })
-        .then(() => 'OK');
+            self.toast('error', 'ERR_MPD', { error: e && e.message ? e.message : String(e) });
+        });
+    });
+    return self.applyRelay().then(() => 'OK');
+};
+
+MpdOutput.prototype.whenBootCompleted = function () {
+    const defer = libQ.defer();
+    let waited = 0;
+    const tick = () => {
+        if (process.env.VOLUMIO_SYSTEM_STATUS === 'ready' || waited >= 120000) defer.resolve();
+        else { waited += 2000; setTimeout(tick, 2000); }
+    };
+    tick();
+    return defer.promise;
 };
 
 MpdOutput.prototype.onStop = function () {
