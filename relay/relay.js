@@ -215,7 +215,10 @@ function onIcyMetadata(text) {
 function syncTitle() {
     const title = volumioTitle !== null ? volumioTitle : icyTitle;
     const source = volumioTitle !== null ? 'volumio' : (icyTitle !== null ? 'mpd' : null);
-    if (status.title !== title || status.titleSource !== source) { status.title = title; status.titleSource = source; publishStatus(); }
+    if (status.title !== title || status.titleSource !== source) {
+        status.title = title; status.titleSource = source; publishStatus();
+        log('info', 'title', { title, source });
+    }
     if (!title || title === pushedTitle || !iceSock || !iceSock.ready) return;
     pushedTitle = title;
     pushTitle(title);

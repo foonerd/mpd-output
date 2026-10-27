@@ -264,7 +264,6 @@ MpdOutput.prototype.applyRelay = function () {
         return libQ.resolve();
     }
     return self.systemctl('restart').then(() => {
-        self.lastSentTitle = null;
         setTimeout(() => self.onVolumioState(self.currentState()), 1500); // relay just started: seed its title
     }).fail((e) => {
         self.toast('error', 'ERR_RELAY', { error: e.message });
@@ -292,13 +291,16 @@ MpdOutput.prototype.currentState = function () {
     try { return this.commandRouter.volumioGetState(); } catch (e) { return null; }
 };
 
+// Every state push while playing is handed over; the relay sends it on only when Icecast's title differs.
 MpdOutput.prototype.onVolumioState = function (state) {
     if (!this.active || !state || state.status !== 'play') return;
     const title = screenTitle(state);
-    if (!title || title === this.lastSentTitle) return;
-    this.lastSentTitle = title;
+    if (!title) return;
     const c = net.connect(RELAY_CONTROL_SOCKET);
-    c.on('error', () => { this.lastSentTitle = null; }); // relay not running: retry on the next state
+    c.on('error', () => {}); // relay not running (Icecast stream off): nothing to update
+    c.on('connect', () => {
+        if (title !== this.lastLoggedTitle) { this.lastLoggedTitle = title; this.logger.info(LOG + 'title: ' + title); }
+    });
     c.end(JSON.stringify({ title }) + '\n');
 };
 
