@@ -12,11 +12,11 @@ const toasts = [];
 const strings = require('../i18n/strings_en.json').MPDOUTPUT;
 const context = {
     coreCommand: {
-        logger: { info() {}, warn() {}, error(m) { console.error('   log.error', m); } },
+        logger: { info() { }, warn() { }, error(m) { console.error('   log.error', m); } },
         getI18nString: (k) => (k.startsWith('MPDOUTPUT.') && strings[k.slice(10)]) || k,
         pushToastMessage: (type, title, text) => toasts.push({ type, text }),
-        getUIConfigOnPlugin: () => ({ then: (f) => { f({}); return { fail() {} }; } }),
-        broadcastMessage() {},
+        getUIConfigOnPlugin: () => ({ then: (f) => { f({}); return { fail() { } }; } }),
+        broadcastMessage() { },
         pluginManager: { getConfigurationFile: () => path.join(tmp, 'config.json'), getPlugin: () => null },
         sharedVars: { get: () => 'en' },
     },
@@ -25,14 +25,16 @@ const context = {
 const MpdOutput = require('../index.js');
 const plugin = new MpdOutput(context);
 plugin.onVolumioStart();
-plugin.saveAndApply = () => ({ then: (f) => { f(); return { fail() {} }; } }); // no MPD here
+plugin.saveAndApply = () => ({ then: (f) => { f(); return { fail() { } }; } }); // no MPD here
 plugin.active = true;
 
 // A configured plugin: both streams on.
 plugin.applyHttp({ httpstream: true, servername: 'Study', encoder: { value: 'vorbis' }, bitrate: { value: '192' }, format: { value: '44100:16:2' }, portn: '8002', httpadd: false });
-plugin.applyIce({ icestream: true, iceservername: 'ice.example.org', icepublishport: '8000', icemountp: '/', iceuser: 'player', icepassword: 'secret',
+plugin.applyIce({
+    icestream: true, iceservername: 'ice.example.org', icepublishport: '8000', icemountp: '/', iceuser: 'player', icepassword: 'secret',
     iceencoder: { value: 'lame' }, icebitrate: { value: '192' }, iceformat: { value: '44100:16:2' }, icestreamname: 'Chapel', icepublic: false, iceadd: true,
-    icedescription: 'Music', icegenre: 'Spiritual', iceurl: '', icefeedport: '8010' });
+    icedescription: 'Music', icegenre: 'Spiritual', iceurl: '', icefeedport: '8010'
+});
 
 const last = () => toasts[toasts.length - 1];
 

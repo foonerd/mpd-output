@@ -303,7 +303,8 @@ MpdOutput.prototype.currentState = function () {
 
 // Every state push while playing is handed over; the relay sends it on only when Icecast's title differs.
 MpdOutput.prototype.onVolumioState = function (state) {
-    if (!this.active || !state || state.status !== 'play') return;
+    if (!this.active || this.config.get('icestream', false) !== true) return;
+    if (!state || state.status !== 'play') return;
     const title = screenTitle(state);
     if (!title) return;
     const c = net.connect(RELAY_CONTROL_SOCKET);
