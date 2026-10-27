@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "Balbuze",
+  "author": "Balbuze, Just a Nerd",
   "license": "ISC",
   "volumio_info": {
     "prettyName": "Mpd http & Icecast output",
