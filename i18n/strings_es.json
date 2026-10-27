@@ -2,7 +2,6 @@
   "MPDOUTPUT": {
     "PLUGIN_NAME": "Salida MPD HTTP e Icecast",
     "PAGE_TITLE": "Salida MPD HTTP e Icecast",
-
     "HTTP_SECTION": "Flujo HTTP",
     "HTTP_SECTION_DESC": "Volumio sirve lo que reproduce como un flujo que cualquier reproductor de la red puede abrir en http://<dirección del reproductor>:<puerto>/.",
     "HTTP_ENABLE": "Flujo HTTP",
@@ -24,7 +23,6 @@
     "MAX_CLIENTS_DESC": "Número de reproductores que pueden escuchar a la vez; 0 para sin límite.",
     "HTTP_GENRE_DESC": "Género anunciado a los reproductores.",
     "HTTP_WEBSITE_DESC": "Dirección web anunciada a los reproductores.",
-
     "ICE_SECTION": "Icecast",
     "ICE_SECTION_DESC": "Volumio envía el flujo a un servidor Icecast. Si el servidor se reinicia o la red falla, el flujo se reconecta por sí solo; la reproducción en este reproductor nunca se ve afectada.",
     "ICE_ENABLE": "Flujo Icecast",
@@ -55,7 +53,7 @@
     "ICE_FEED_PORT_DESC": "Puerto en 127.0.0.1 por el que MPD entrega el flujo codificado al relé. Cámbielo solo si otro servicio usa el 8010.",
     "RELAY_STATUS": "Mostrar estado del relé",
     "RELAY_STATUS_DESC": "Si el relé está conectado a MPD y al servidor, y el último error si lo hubo.",
-
+    "SAVE": "Guardar",
     "SAVED": "Ajustes guardados. MPD se está reiniciando.",
     "NOTHING_ENABLED": "Ambos flujos están desactivados. MPD funciona sin salidas de transmisión.",
     "ERR_PORT": "{{field}} debe ser un número de puerto entre 1 y 65535.",
@@ -68,7 +66,6 @@
     "ERR_MPD": "No se pudo reconfigurar MPD: {{error}}",
     "ERR_RELAY": "No se pudo iniciar el servicio de relé: {{error}}",
     "LEGACY_PROTOCOL": "El protocolo {{protocol}} ya no se ofrece; el flujo se envía como Icecast 2.",
-
     "STATUS_TITLE": "Relé Icecast",
     "STATUS_OFF": "El flujo Icecast está desactivado.",
     "STATUS_NOT_RUNNING": "El servicio de relé no está en ejecución.",

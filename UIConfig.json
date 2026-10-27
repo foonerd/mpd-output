@@ -15,7 +15,7 @@
         "method": "updateConfig"
       },
       "saveButton": {
-        "label": "TRANSLATE.COMMON.SAVE",
+        "label": "TRANSLATE.MPDOUTPUT.SAVE",
         "data": [
           "httpstream",
           "servername",
@@ -144,7 +144,7 @@
         "method": "updateConfigIce"
       },
       "saveButton": {
-        "label": "TRANSLATE.COMMON.SAVE",
+        "label": "TRANSLATE.MPDOUTPUT.SAVE",
         "data": [
           "icestream",
           "iceservername",

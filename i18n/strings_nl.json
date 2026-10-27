@@ -2,7 +2,6 @@
   "MPDOUTPUT": {
     "PLUGIN_NAME": "MPD HTTP- & Icecast-uitvoer",
     "PAGE_TITLE": "MPD HTTP- & Icecast-uitvoer",
-
     "HTTP_SECTION": "HTTP-stream",
     "HTTP_SECTION_DESC": "Volumio biedt wat het afspeelt aan als stream die elke speler in het netwerk kan openen op http://<adres van de speler>:<poort>/.",
     "HTTP_ENABLE": "HTTP-stream",
@@ -24,7 +23,6 @@
     "MAX_CLIENTS_DESC": "Aantal spelers dat tegelijk mag luisteren; 0 voor geen limiet.",
     "HTTP_GENRE_DESC": "Genre dat aan spelers wordt gemeld.",
     "HTTP_WEBSITE_DESC": "Webadres dat aan spelers wordt gemeld.",
-
     "ICE_SECTION": "Icecast",
     "ICE_SECTION_DESC": "Volumio stuurt de stream naar een Icecast-server. Herstart de server of valt het netwerk weg, dan verbindt de stream zichzelf opnieuw; het afspelen op deze speler wordt nooit beïnvloed.",
     "ICE_ENABLE": "Icecast-stream",
@@ -55,7 +53,7 @@
     "ICE_FEED_PORT_DESC": "Poort op 127.0.0.1 waarover MPD de gecodeerde stream aan het relais geeft. Alleen wijzigen als een andere dienst 8010 gebruikt.",
     "RELAY_STATUS": "Relaisstatus tonen",
     "RELAY_STATUS_DESC": "Of het relais met MPD en met de server verbonden is, en de laatste fout als die er was.",
-
+    "SAVE": "Opslaan",
     "SAVED": "Instellingen opgeslagen. MPD herstart.",
     "NOTHING_ENABLED": "Beide streams staan uit. MPD draait zonder streaminguitvoer.",
     "ERR_PORT": "{{field}} moet een poortnummer tussen 1 en 65535 zijn.",
@@ -68,7 +66,6 @@
     "ERR_MPD": "MPD kon niet opnieuw worden geconfigureerd: {{error}}",
     "ERR_RELAY": "De relaisdienst kon niet worden gestart: {{error}}",
     "LEGACY_PROTOCOL": "Het protocol {{protocol}} wordt niet meer aangeboden; de stream wordt als Icecast 2 verzonden.",
-
     "STATUS_TITLE": "Icecast-relais",
     "STATUS_OFF": "De Icecast-stream staat uit.",
     "STATUS_NOT_RUNNING": "De relaisdienst draait niet.",

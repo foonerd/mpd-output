@@ -2,7 +2,6 @@
   "MPDOUTPUT": {
     "PLUGIN_NAME": "Sortie MPD HTTP & Icecast",
     "PAGE_TITLE": "Sortie MPD HTTP & Icecast",
-
     "HTTP_SECTION": "Flux HTTP",
     "HTTP_SECTION_DESC": "Volumio diffuse ce qu'il lit sous forme de flux que tout lecteur du réseau peut ouvrir à l'adresse http://<adresse du lecteur>:<port>/.",
     "HTTP_ENABLE": "Flux HTTP",
@@ -24,7 +23,6 @@
     "MAX_CLIENTS_DESC": "Nombre de lecteurs pouvant écouter en même temps ; 0 pour aucune limite.",
     "HTTP_GENRE_DESC": "Genre annoncé aux lecteurs.",
     "HTTP_WEBSITE_DESC": "Adresse web annoncée aux lecteurs.",
-
     "ICE_SECTION": "Icecast",
     "ICE_SECTION_DESC": "Volumio envoie le flux à un serveur Icecast. Si le serveur redémarre ou si le réseau tombe, le flux se reconnecte de lui-même ; la lecture sur ce lecteur n'est jamais affectée.",
     "ICE_ENABLE": "Flux Icecast",
@@ -55,7 +53,7 @@
     "ICE_FEED_PORT_DESC": "Port sur 127.0.0.1 par lequel MPD remet le flux encodé au relais. À changer seulement si un autre service occupe 8010.",
     "RELAY_STATUS": "Afficher l'état du relais",
     "RELAY_STATUS_DESC": "Si le relais est connecté à MPD et au serveur, et la dernière erreur le cas échéant.",
-
+    "SAVE": "Enregistrer",
     "SAVED": "Réglages enregistrés. MPD redémarre.",
     "NOTHING_ENABLED": "Les deux flux sont désactivés. MPD fonctionne sans sortie de diffusion.",
     "ERR_PORT": "{{field}} doit être un numéro de port entre 1 et 65535.",
@@ -68,7 +66,6 @@
     "ERR_MPD": "MPD n'a pas pu être reconfiguré : {{error}}",
     "ERR_RELAY": "Le service de relais n'a pas pu démarrer : {{error}}",
     "LEGACY_PROTOCOL": "Le protocole {{protocol}} n'est plus proposé ; le flux est envoyé en Icecast 2.",
-
     "STATUS_TITLE": "Relais Icecast",
     "STATUS_OFF": "Le flux Icecast est désactivé.",
     "STATUS_NOT_RUNNING": "Le service de relais n'est pas en cours d'exécution.",

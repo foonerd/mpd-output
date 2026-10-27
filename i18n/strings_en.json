@@ -2,7 +2,6 @@
   "MPDOUTPUT": {
     "PLUGIN_NAME": "MPD HTTP & Icecast output",
     "PAGE_TITLE": "MPD HTTP & Icecast output",
-
     "HTTP_SECTION": "HTTP stream",
     "HTTP_SECTION_DESC": "Volumio serves what it plays as a stream any player on the network can open at http://<player address>:<port>/.",
     "HTTP_ENABLE": "HTTP stream",
@@ -24,7 +23,6 @@
     "MAX_CLIENTS_DESC": "Number of players that may listen at once; 0 for no limit.",
     "HTTP_GENRE_DESC": "Genre announced to players.",
     "HTTP_WEBSITE_DESC": "Web address announced to players.",
-
     "ICE_SECTION": "Icecast",
     "ICE_SECTION_DESC": "Volumio sends the stream to an Icecast server. If the server reboots or the network drops, the stream reconnects by itself; playback on this player is never affected.",
     "ICE_ENABLE": "Icecast stream",
@@ -55,7 +53,7 @@
     "ICE_FEED_PORT_DESC": "Port on 127.0.0.1 where MPD hands the encoded stream to the relay. Change only if another service uses 8010.",
     "RELAY_STATUS": "Show relay status",
     "RELAY_STATUS_DESC": "Whether the relay is connected to MPD and to the server, and the last error if any.",
-
+    "SAVE": "Save",
     "SAVED": "Settings saved. MPD is restarting.",
     "NOTHING_ENABLED": "Both streams are off. MPD runs without streaming outputs.",
     "ERR_PORT": "{{field}} must be a port number between 1 and 65535.",
@@ -68,7 +66,6 @@
     "ERR_MPD": "MPD could not be reconfigured: {{error}}",
     "ERR_RELAY": "The relay service could not be started: {{error}}",
     "LEGACY_PROTOCOL": "The {{protocol}} protocol is no longer offered; the stream is sent as Icecast 2.",
-
     "STATUS_TITLE": "Icecast relay",
     "STATUS_OFF": "Icecast stream is off.",
     "STATUS_NOT_RUNNING": "The relay service is not running.",

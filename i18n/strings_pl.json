@@ -2,7 +2,6 @@
   "MPDOUTPUT": {
     "PLUGIN_NAME": "Wyjście MPD HTTP i Icecast",
     "PAGE_TITLE": "Wyjście MPD HTTP i Icecast",
-
     "HTTP_SECTION": "Strumień HTTP",
     "HTTP_SECTION_DESC": "Volumio udostępnia odtwarzany dźwięk jako strumień, który każdy odtwarzacz w sieci może otworzyć pod adresem http://<adres odtwarzacza>:<port>/.",
     "HTTP_ENABLE": "Strumień HTTP",
@@ -24,7 +23,6 @@
     "MAX_CLIENTS_DESC": "Liczba odtwarzaczy, które mogą słuchać jednocześnie; 0 oznacza brak limitu.",
     "HTTP_GENRE_DESC": "Gatunek przekazywany odtwarzaczom.",
     "HTTP_WEBSITE_DESC": "Adres WWW przekazywany odtwarzaczom.",
-
     "ICE_SECTION": "Icecast",
     "ICE_SECTION_DESC": "Volumio wysyła strumień do serwera Icecast. Gdy serwer się restartuje lub sieć zanika, strumień łączy się ponownie sam; odtwarzanie na tym odtwarzaczu nigdy na tym nie cierpi.",
     "ICE_ENABLE": "Strumień Icecast",
@@ -55,7 +53,7 @@
     "ICE_FEED_PORT_DESC": "Port na 127.0.0.1, przez który MPD przekazuje zakodowany strumień do przekaźnika. Zmieniaj tylko, gdy inna usługa używa 8010.",
     "RELAY_STATUS": "Pokaż stan przekaźnika",
     "RELAY_STATUS_DESC": "Czy przekaźnik jest połączony z MPD i z serwerem oraz ostatni błąd, jeśli wystąpił.",
-
+    "SAVE": "Zapisz",
     "SAVED": "Ustawienia zapisane. MPD uruchamia się ponownie.",
     "NOTHING_ENABLED": "Oba strumienie są wyłączone. MPD działa bez wyjść strumieniowych.",
     "ERR_PORT": "{{field}} musi być numerem portu z zakresu 1–65535.",
@@ -68,7 +66,6 @@
     "ERR_MPD": "Nie udało się ponownie skonfigurować MPD: {{error}}",
     "ERR_RELAY": "Nie udało się uruchomić usługi przekaźnika: {{error}}",
     "LEGACY_PROTOCOL": "Protokół {{protocol}} nie jest już oferowany; strumień jest wysyłany jako Icecast 2.",
-
     "STATUS_TITLE": "Przekaźnik Icecast",
     "STATUS_OFF": "Strumień Icecast jest wyłączony.",
     "STATUS_NOT_RUNNING": "Usługa przekaźnika nie działa.",
