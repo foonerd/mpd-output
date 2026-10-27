@@ -15,6 +15,8 @@
 const fs = require('fs');
 const net = require('net');
 const tls = require('tls');
+const http = require('http');
+const https = require('https');
 
 const VERSION = '3.0.0';
 
@@ -63,6 +65,11 @@ let mpdTimer = null;
 let mpdAttempt = 0;
 let mpdWaitLogged = 0;
 let stallTicker = null;
+// ICY metadata interleaved by MPD's MP3 stream: stripped here, forwarded to Icecast's admin interface.
+let icy = null; // { metaint, toNext, metaLen, metaBuf }
+let lastTitle = null;
+
+setInterval(publishStatus, 10000).unref();
 
 // ---------------------------------------------------------------- MPD side
 
@@ -76,11 +83,11 @@ function connectMpd() {
     s.setNoDelay(true);
     s.setKeepAlive(true, 10000);
     s.once('connect', () => {
-        // Icy-MetaData deliberately absent: MPD then sends a plain stream (Ogg carries tags in-band).
-        s.write(`GET / HTTP/1.1\r\nHost: ${cfg.source.host}\r\nUser-Agent: mpd-output-relay/${VERSION}\r\nConnection: close\r\n\r\n`);
+        // Ogg encoders carry tags in-band and MPD ignores the request; the MP3 encoder answers with icy-metaint.
+        s.write(`GET / HTTP/1.1\r\nHost: ${cfg.source.host}\r\nUser-Agent: mpd-output-relay/${VERSION}\r\nIcy-MetaData: 1\r\nConnection: close\r\n\r\n`);
     });
     s.on('data', (chunk) => {
-        if (inBody) { onAudio(chunk); return; }
+        if (inBody) { onStream(chunk); return; }
         headerBuf = Buffer.concat([headerBuf, chunk]);
         const end = headerBuf.indexOf('\r\n\r\n');
         if (end < 0) {
@@ -89,23 +96,26 @@ function connectMpd() {
         }
         const head = headerBuf.subarray(0, end).toString('latin1');
         const statusLine = head.split('\r\n')[0];
-        if (!/^HTTP\/1\.[01] 200 /.test(statusLine)) {
+        if (!/^(HTTP\/1\.[01]|ICY) 200 /.test(statusLine)) {
             log('error', 'mpd: unexpected response', { statusLine });
             s.destroy();
             return;
         }
         const m = /^content-type:\s*(.+)$/im.exec(head);
         contentType = m ? m[1].trim() : 'application/octet-stream';
+        const mi = /^icy-metaint:\s*(\d+)/im.exec(head);
+        icy = mi && parseInt(mi[1], 10) > 0 ? { metaint: parseInt(mi[1], 10), toNext: parseInt(mi[1], 10), metaLen: -1, metaBuf: Buffer.alloc(0) } : null;
+        lastTitle = null;
         inBody = true;
         mpdAttempt = 0;
         mpdWaitLogged = 0;
         status.mpd = 'connected';
         publishStatus();
-        log('info', 'mpd: stream open', { contentType });
+        log('info', 'mpd: stream open', { contentType, icyMetaint: icy ? icy.metaint : 0 });
         connectIcecast();
         const rest = headerBuf.subarray(end + 4);
         headerBuf = Buffer.alloc(0);
-        if (rest.length) onAudio(rest);
+        if (rest.length) onStream(rest);
     });
     const gone = (why) => {
         if (mpdSock !== s) return;
@@ -138,6 +148,62 @@ function onAudio(chunk) {
     if (!iceSock || !iceSock.ready) return; // no peer: MPD's bytes are dropped here, never queued
     iceSock.write(chunk);
     status.bytesRelayed += chunk.length;
+}
+
+// ICY framing: metaint bytes of audio, one length byte, length*16 bytes of metadata, repeat.
+function onStream(chunk) {
+    if (!icy) { onAudio(chunk); return; }
+    let off = 0;
+    while (off < chunk.length) {
+        if (icy.metaLen < 0) {
+            if (icy.toNext > 0) {
+                const n = Math.min(icy.toNext, chunk.length - off);
+                onAudio(chunk.subarray(off, off + n));
+                off += n;
+                icy.toNext -= n;
+                continue;
+            }
+            icy.metaLen = chunk[off] * 16;
+            off += 1;
+            icy.metaBuf = Buffer.alloc(0);
+            if (icy.metaLen === 0) { icy.metaLen = -1; icy.toNext = icy.metaint; }
+            continue;
+        }
+        const n = Math.min(icy.metaLen - icy.metaBuf.length, chunk.length - off);
+        icy.metaBuf = Buffer.concat([icy.metaBuf, chunk.subarray(off, off + n)]);
+        off += n;
+        if (icy.metaBuf.length === icy.metaLen) {
+            onIcyMetadata(icy.metaBuf.toString('utf8').replace(/\0+$/, ''));
+            icy.metaLen = -1;
+            icy.toNext = icy.metaint;
+        }
+    }
+}
+
+function onIcyMetadata(text) {
+    const m = /StreamTitle='((?:[^']|'(?!;))*)';/.exec(text);
+    if (!m) return;
+    const title = m[1].trim();
+    if (title === lastTitle) return;
+    lastTitle = title;
+    pushTitle(title);
+}
+
+// Icecast accepts the mount's source credentials on /admin/metadata.
+function pushTitle(title) {
+    if (!iceSock || !iceSock.ready) return;
+    const ic = cfg.icecast;
+    const q = `mode=updinfo&charset=UTF-8&mount=${encodeURIComponent(ic.mount)}&song=${encodeURIComponent(title)}`;
+    const req = (ic.tls ? https : http).request({
+        host: ic.host, port: ic.port, method: 'GET', path: `/admin/metadata?${q}`, timeout: 5000,
+        headers: { Authorization: `Basic ${basicAuth()}`, 'User-Agent': `mpd-output-relay/${VERSION}` },
+    }, (res) => {
+        res.resume();
+        if (res.statusCode !== 200) log('warn', 'icecast: metadata update rejected', { statusCode: res.statusCode, title });
+    });
+    req.on('timeout', () => req.destroy(new Error('timeout')));
+    req.on('error', (e) => log('warn', 'icecast: metadata update failed', { error: e.code || e.message }));
+    req.end();
 }
 
 // ------------------------------------------------------------ Icecast side
@@ -205,6 +271,7 @@ function connectIcecast() {
             publishStatus();
             log('info', 'icecast: source accepted', { mount: ic.mount, host: ic.host, port: ic.port });
             startStallTicker();
+            if (icy && lastTitle) pushTitle(lastTitle);
         } else {
             status.lastError = `icecast: ${statusLine}${reason ? ' - ' + reason : ''}`;
             log('error', 'icecast: rejected', { statusLine, reason });
