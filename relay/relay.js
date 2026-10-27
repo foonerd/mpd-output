@@ -68,6 +68,9 @@ let stallTicker = null;
 // ICY metadata interleaved by MPD's MP3 stream: stripped here, forwarded to Icecast's admin interface.
 let icy = null; // { metaint, toNext, metaLen, metaBuf }
 let lastTitle = null;
+// Bytes of the current MPD session that had no Icecast peer. Ogg encoders send their header pages
+// once, at connect; if those were dropped the session is reopened once Icecast is ready.
+let mpdDropped = 0;
 
 setInterval(publishStatus, 10000).unref();
 
@@ -106,6 +109,7 @@ function connectMpd() {
         const mi = /^icy-metaint:\s*(\d+)/im.exec(head);
         icy = mi && parseInt(mi[1], 10) > 0 ? { metaint: parseInt(mi[1], 10), toNext: parseInt(mi[1], 10), metaLen: -1, metaBuf: Buffer.alloc(0) } : null;
         lastTitle = null;
+        mpdDropped = 0;
         inBody = true;
         mpdAttempt = 0;
         mpdWaitLogged = 0;
@@ -120,6 +124,11 @@ function connectMpd() {
     const gone = (why) => {
         if (mpdSock !== s) return;
         mpdSock = null;
+        if (s.reopen) {
+            log('info', 'mpd: feed reopened so the Icecast session starts with the stream headers', { dropped: mpdDropped });
+            connectMpd();
+            return;
+        }
         const wasOpen = inBody;
         publishStatus();
         // MPD binds the httpd listener only once the output is opened, i.e. at the first playback
@@ -145,9 +154,15 @@ function connectMpd() {
 }
 
 function onAudio(chunk) {
-    if (!iceSock || !iceSock.ready) return; // no peer: MPD's bytes are dropped here, never queued
+    if (!iceSock || !iceSock.ready) { mpdDropped += chunk.length; return; } // no peer: dropped, never queued
     iceSock.write(chunk);
     status.bytesRelayed += chunk.length;
+}
+
+function reopenMpd() {
+    if (!mpdSock) return;
+    mpdSock.reopen = true;
+    mpdSock.destroy();
 }
 
 // ICY framing: metaint bytes of audio, one length byte, length*16 bytes of metadata, repeat.
@@ -271,6 +286,7 @@ function connectIcecast() {
             publishStatus();
             log('info', 'icecast: source accepted', { mount: ic.mount, host: ic.host, port: ic.port });
             startStallTicker();
+            if (mpdDropped > 0) { reopenMpd(); return; }
             if (icy && lastTitle) pushTitle(lastTitle);
         } else {
             status.lastError = `icecast: ${statusLine}${reason ? ' - ' + reason : ''}`;

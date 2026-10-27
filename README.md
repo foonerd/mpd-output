@@ -7,7 +7,7 @@ Store name: `mpdoutput` (category `audio_interface`). Existing installations upg
 ## What it does
 
 - **HTTP stream** — MPD serves the encoded audio on a port of your choice. Any player on the network opens `http://<player>:<port>/`. Encoders: MP3, Ogg Vorbis, Ogg Opus, FLAC.
-- **Icecast** — the encoded audio is published on a mount of an Icecast 2 server. Encoders: Ogg Vorbis, Ogg Opus, MP3. Track titles reach the server for all three (in-band for Ogg, through Icecast's metadata interface for MP3).
+- **Icecast** — the encoded audio is published on a mount of an Icecast 2 server. Encoders: Ogg Vorbis, Ogg Opus, MP3. Track titles reach the server for Vorbis (in-band) and MP3 (through Icecast's metadata interface). Icecast 2.4 does not expose titles for Opus mounts; listeners still receive the audio.
 
 Both streams follow playback, pause and stop. While stopped, listeners stay connected and hear silence.
 
