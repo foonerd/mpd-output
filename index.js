@@ -20,6 +20,16 @@ const PLUGIN_NAME = 'mpdoutput';
 const SERVICE = 'mpd-output-relay.service';
 const RELAY_STATUS_FILE = '/run/mpd-output/status.json';
 const RELAY_CONTROL_SOCKET = '/run/mpd-output/control.sock';
+// Named settings backups: outside the plugin and its configuration folder so they survive
+// uninstall and a reinstall, and on the Internal Storage share so they can be copied to another player.
+const BACKUP_DIR = '/data/INTERNAL/mpdoutput/backups';
+const BACKUP_SCHEMA = 1;
+const BACKUP_NAME_RE = /^[A-Za-z0-9._ -]{1,64}$/;
+const BACKUP_KEYS = [
+    'httpstream', 'servername', 'encoder', 'bitrate', 'format', 'portn', 'httpadd', 'max_clients', 'httpgenre', 'httpwebsite',
+    'icestream', 'iceservername', 'icepublishport', 'icemountp', 'iceuser', 'icepassword', 'iceencoder', 'icebitrate', 'iceformat',
+    'icestreamname', 'icepublic', 'iceadd', 'icedescription', 'icegenre', 'iceurl', 'icefeedport',
+];
 const MPD_CONF = '/etc/mpd.conf';
 const MARKER = '# mpdoutput plugin: streaming outputs (managed by the plugin, do not edit)';
 const FEED_NAME = 'mpdoutput-icecast-feed';
@@ -406,6 +416,17 @@ MpdOutput.prototype.getUIConfig = function () {
             setValue(ice, 'icegenre', c.get('icegenre', ''));
             setValue(ice, 'iceurl', c.get('iceurl', ''));
             setValue(ice, 'icefeedport', c.get('icefeedport', '8010'));
+
+            const backups = self.listBackups();
+            const none = { value: '', label: self.i18n('BACKUP_NONE_YET') };
+            ['selected_backup', 'selected_backup_delete'].forEach((id) => {
+                uiconf.sections.forEach((s) => {
+                    const item = (s.content || []).find((x) => x.id === id);
+                    if (!item) return;
+                    item.options = backups.length ? backups : [none];
+                    item.value = backups.length ? backups[0] : none;
+                });
+            });
             defer.resolve(uiconf);
         })
         .fail((e) => {
@@ -434,42 +455,46 @@ function sel(v) {
 MpdOutput.prototype.updateConfig = function (data) {
     const self = this;
     const c = self.config;
-    const on = data.httpstream === true;
-    const err = on && (
-        checkPort(self, data.portn, 'HTTP_PORT') ||
-        checkText(self, data.servername, 'SERVERNAME') ||
-        (data.httpadd === true && (
-            checkInt(self, data.max_clients, 'MAX_CLIENTS') ||
-            checkText(self, data.httpgenre, 'ICE_GENRE') ||
-            checkText(self, data.httpwebsite, 'ICE_URL'))) ||
-        (c.get('icestream', false) === true && String(data.portn).trim() === String(c.get('icefeedport', '8010')).trim() ? self.i18n('ERR_PORTS_DIFFER') : null));
+    const err = self.validateHttp(data, { icestream: c.get('icestream', false) === true, icefeedport: c.get('icefeedport', '8010') });
     if (err) {
         self.toast('error', err);
         return libQ.reject(new Error(err));
     }
-    c.set('httpstream', on);
-    if (on) {
-        c.set('servername', String(data.servername).trim());
-        c.set('encoder', sel(data.encoder));
-        c.set('bitrate', sel(data.bitrate));
-        c.set('format', sel(data.format));
-        c.set('portn', String(data.portn).trim());
-        c.set('httpadd', data.httpadd === true);
-        if (data.httpadd === true) {
-            c.set('max_clients', String(data.max_clients).trim());
-            c.set('httpgenre', String(data.httpgenre || '').trim());
-            c.set('httpwebsite', String(data.httpwebsite || '').trim());
-        }
-    }
+    self.applyHttp(data);
     return self.saveAndApply();
 };
 
 MpdOutput.prototype.updateConfigIce = function (data) {
     const self = this;
     const c = self.config;
-    const on = data.icestream === true;
-    const err = on && (
-        (!data.iceservername || !String(data.iceservername).trim() ? self.i18n('ERR_HOST') : null) ||
+    const err = self.validateIce(data, { httpstream: c.get('httpstream', false) === true, portn: c.get('portn', '8000') });
+    if (err) {
+        self.toast('error', err);
+        return libQ.reject(new Error(err));
+    }
+    self.applyIce(data);
+    return self.saveAndApply();
+};
+
+// `other` carries the counterpart stream's state for the port clash check (current config on a
+// save, the snapshot's own values on a restore).
+MpdOutput.prototype.validateHttp = function (data, other) {
+    const self = this;
+    if (data.httpstream !== true) return null;
+    return checkPort(self, data.portn, 'HTTP_PORT') ||
+        checkText(self, data.servername, 'SERVERNAME') ||
+        (data.httpadd === true && (
+            checkInt(self, data.max_clients, 'MAX_CLIENTS') ||
+            checkText(self, data.httpgenre, 'ICE_GENRE') ||
+            checkText(self, data.httpwebsite, 'ICE_URL'))) ||
+        (other.icestream && String(data.portn).trim() === String(other.icefeedport).trim() ? self.i18n('ERR_PORTS_DIFFER') : null) ||
+        null;
+};
+
+MpdOutput.prototype.validateIce = function (data, other) {
+    const self = this;
+    if (data.icestream !== true) return null;
+    return (!data.iceservername || !String(data.iceservername).trim() ? self.i18n('ERR_HOST') : null) ||
         checkPort(self, data.icepublishport, 'ICE_PORT') ||
         checkPort(self, data.icefeedport, 'ICE_FEED_PORT') ||
         (!/^\/\S*$/.test(String(data.icemountp || '').trim()) ? self.i18n('ERR_MOUNT') : null) ||
@@ -479,33 +504,51 @@ MpdOutput.prototype.updateConfigIce = function (data) {
             checkText(self, data.icedescription, 'ICE_DESCRIPTION') ||
             checkText(self, data.icegenre, 'ICE_GENRE') ||
             checkText(self, data.iceurl, 'ICE_URL'))) ||
-        (c.get('httpstream', false) === true && String(data.icefeedport).trim() === String(c.get('portn', '8000')).trim() ? self.i18n('ERR_PORTS_DIFFER') : null));
-    if (err) {
-        self.toast('error', err);
-        return libQ.reject(new Error(err));
+        (other.httpstream && String(data.icefeedport).trim() === String(other.portn).trim() ? self.i18n('ERR_PORTS_DIFFER') : null) ||
+        null;
+};
+
+MpdOutput.prototype.applyHttp = function (data) {
+    const c = this.config;
+    const on = data.httpstream === true;
+    c.set('httpstream', on);
+    if (!on) return;
+    c.set('servername', String(data.servername).trim());
+    c.set('encoder', sel(data.encoder));
+    c.set('bitrate', sel(data.bitrate));
+    c.set('format', sel(data.format));
+    c.set('portn', String(data.portn).trim());
+    c.set('httpadd', data.httpadd === true);
+    if (data.httpadd === true) {
+        c.set('max_clients', String(data.max_clients).trim());
+        c.set('httpgenre', String(data.httpgenre || '').trim());
+        c.set('httpwebsite', String(data.httpwebsite || '').trim());
     }
+};
+
+MpdOutput.prototype.applyIce = function (data) {
+    const c = this.config;
+    const on = data.icestream === true;
     c.set('icestream', on);
-    if (on) {
-        c.set('iceservername', String(data.iceservername).trim());
-        c.set('icepublishport', String(data.icepublishport).trim());
-        c.set('iceprotocol', 'icecast2');
-        c.set('icemountp', String(data.icemountp).trim());
-        c.set('iceencoder', sel(data.iceencoder));
-        c.set('icebitrate', sel(data.icebitrate));
-        c.set('iceformat', sel(data.iceformat));
-        c.set('iceuser', String(data.iceuser || 'source').trim() || 'source');
-        c.set('icepassword', String(data.icepassword));
-        c.set('icestreamname', String(data.icestreamname).trim());
-        c.set('icepublic', data.icepublic === true ? 'yes' : 'no');
-        c.set('iceadd', data.iceadd === true);
-        if (data.iceadd === true) {
-            c.set('icedescription', String(data.icedescription || '').trim());
-            c.set('icegenre', String(data.icegenre || '').trim());
-            c.set('iceurl', String(data.iceurl || '').trim());
-            c.set('icefeedport', String(data.icefeedport).trim());
-        }
+    if (!on) return;
+    c.set('iceservername', String(data.iceservername).trim());
+    c.set('icepublishport', String(data.icepublishport).trim());
+    c.set('iceprotocol', 'icecast2');
+    c.set('icemountp', String(data.icemountp).trim());
+    c.set('iceencoder', sel(data.iceencoder));
+    c.set('icebitrate', sel(data.icebitrate));
+    c.set('iceformat', sel(data.iceformat));
+    c.set('iceuser', String(data.iceuser || 'source').trim() || 'source');
+    c.set('icepassword', String(data.icepassword));
+    c.set('icestreamname', String(data.icestreamname).trim());
+    c.set('icepublic', data.icepublic === true ? 'yes' : 'no');
+    c.set('iceadd', data.iceadd === true);
+    if (data.iceadd === true) {
+        c.set('icedescription', String(data.icedescription || '').trim());
+        c.set('icegenre', String(data.icegenre || '').trim());
+        c.set('iceurl', String(data.iceurl || '').trim());
+        c.set('icefeedport', String(data.icefeedport).trim());
     }
-    return self.saveAndApply();
 };
 
 function checkPort(self, v, field) {
@@ -533,6 +576,93 @@ MpdOutput.prototype.saveAndApply = function () {
         .fail((e) => {
             self.toast('error', 'ERR_MPD', { error: e && e.message ? e.message : String(e) });
         });
+};
+
+// -------------------------------------------------------- settings backups
+
+function backupName(raw) {
+    const name = String(raw == null ? '' : raw).trim();
+    return BACKUP_NAME_RE.test(name) && !name.includes('..') ? name : '';
+}
+
+function backupPath(name) {
+    return path.join(BACKUP_DIR, name + '.json');
+}
+
+MpdOutput.prototype.backupSnapshot = function (name) {
+    const values = {};
+    BACKUP_KEYS.forEach((k) => { if (this.config.has(k)) values[k] = this.config.get(k); });
+    let version = '';
+    try { version = require('./package.json').version; } catch (e) { /* informational */ }
+    return { schema_version: BACKUP_SCHEMA, plugin: PLUGIN_NAME, plugin_version: version, name, created: new Date().toISOString(), values };
+};
+
+MpdOutput.prototype.readBackup = function (name) {
+    const safe = backupName(name);
+    if (!safe) return { error: 'ERR_BACKUP_CHOOSE' };
+    let snap;
+    try { snap = JSON.parse(fs.readFileSync(backupPath(safe), 'utf8')); } catch (e) { return { error: 'ERR_BACKUP_MISSING' }; }
+    if (!snap || snap.schema_version !== BACKUP_SCHEMA || !snap.values || typeof snap.values !== 'object') return { error: 'ERR_BACKUP_INVALID' };
+    return { name: safe, snapshot: snap };
+};
+
+MpdOutput.prototype.listBackups = function () {
+    let files = [];
+    try { files = fs.readdirSync(BACKUP_DIR); } catch (e) { return []; }
+    return files
+        .filter((f) => f.endsWith('.json') && backupName(f.slice(0, -5)))
+        .map((f) => this.readBackup(f.slice(0, -5)))
+        .filter((r) => !r.error)
+        .sort((a, b) => String(b.snapshot.created).localeCompare(String(a.snapshot.created)))
+        .map((r) => ({ value: r.name, label: r.name + ' (' + String(r.snapshot.created).slice(0, 10) + ')' }));
+};
+
+MpdOutput.prototype.createBackup = function (data) {
+    const name = backupName(data && data.backup_name);
+    if (!name) { this.toast('error', 'ERR_BACKUP_NAME'); return libQ.resolve(); }
+    try {
+        fs.mkdirSync(BACKUP_DIR, { recursive: true, mode: 0o700 });
+        // Carries the Icecast source password: owner-only like relay.json.
+        fs.writeFileSync(backupPath(name), JSON.stringify(this.backupSnapshot(name), null, 2) + '\n', { mode: 0o600 });
+    } catch (e) {
+        this.logger.error(LOG + 'backup: ' + (e && e.message ? e.message : e));
+        this.toast('error', 'ERR_BACKUP_WRITE', { error: e && e.message ? e.message : String(e) });
+        return libQ.resolve();
+    }
+    this.toast('success', 'BACKUP_SAVED', { name });
+    return this.refreshUi();
+};
+
+// Values are checked by the same rules as a save, against the snapshot itself; applied with one MPD restart.
+MpdOutput.prototype.restoreBackup = function (data) {
+    const read = this.readBackup(sel(data && data.selected_backup));
+    if (read.error) { this.toast('error', read.error); return libQ.resolve(); }
+    const v = read.snapshot.values;
+    const http = Object.assign({}, v, { httpstream: v.httpstream === true, httpadd: v.httpadd === true });
+    const ice = Object.assign({}, v, { icestream: v.icestream === true, iceadd: v.iceadd === true, icepublic: v.icepublic === 'yes' || v.icepublic === true });
+    const err = this.validateHttp(http, { icestream: ice.icestream, icefeedport: ice.icefeedport }) ||
+        this.validateIce(ice, { httpstream: http.httpstream, portn: http.portn });
+    if (err) { this.toast('error', 'ERR_BACKUP_REJECTED', { error: err }); return libQ.resolve(); }
+    this.applyHttp(http);
+    this.applyIce(ice);
+    const self = this;
+    return this.saveAndApply().then(() => { self.toast('success', 'RESTORED', { name: read.name }); return self.refreshUi(); });
+};
+
+MpdOutput.prototype.deleteBackup = function (data) {
+    const name = backupName(sel(data && data.selected_backup_delete));
+    if (!name) { this.toast('error', 'ERR_BACKUP_CHOOSE'); return libQ.resolve(); }
+    try { fs.unlinkSync(backupPath(name)); } catch (e) { this.toast('error', 'ERR_BACKUP_MISSING'); return libQ.resolve(); }
+    this.toast('success', 'BACKUP_DELETED', { name });
+    return this.refreshUi();
+};
+
+MpdOutput.prototype.refreshUi = function () {
+    const self = this;
+    if (typeof self.commandRouter.getUIConfigOnPlugin !== 'function') return libQ.resolve();
+    return self.commandRouter.getUIConfigOnPlugin(PLUGIN_TYPE, PLUGIN_NAME, {})
+        .then((ui) => { self.commandRouter.broadcastMessage('pushUiConfig', ui); })
+        .fail(() => undefined);
 };
 
 // ------------------------------------------------------------------- i18n

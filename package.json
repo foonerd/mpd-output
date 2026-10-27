@@ -4,7 +4,8 @@
   "description": "MPD HTTP and Icecast streaming output for Volumio",
   "main": "index.js",
   "scripts": {
-    "test": "node test/check.js"
+    "test": "node test/check.js",
+    "test:backup": "node test/backup.test.js"
   },
   "author": "Balbuze, Just a Nerd",
   "license": "ISC",

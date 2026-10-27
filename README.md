@@ -34,6 +34,14 @@ Saving restarts MPD, as every MPD configuration change in Volumio does; check pl
 
 After updating the plugin from the store, restart Volumio (or reboot) so the new version is the one running; Volumio loads plugin code once per start.
 
+## Backup and restore
+
+The settings page has three sections for named settings backups: **Save settings backup**, **Restore settings backup**, **Delete settings backup**. A backup is a JSON file with every setting of the plugin, written to `/data/INTERNAL/mpdoutput/backups/<name>.json` — outside the plugin and its configuration folder, so it survives disabling, uninstalling and reinstalling the plugin. That folder is part of Volumio's *Internal Storage* network share, so a backup can be copied off the player with any file browser.
+
+Restoring applies the backup through the same checks as a save and restarts MPD once. A backup that would not pass the settings page (for example two streams on the same port) is refused with the reason, and the current settings stay.
+
+To move the configuration to another player, or back onto a freshly installed one: install the plugin, copy the backup file into `/data/INTERNAL/mpdoutput/backups/` on the new player (the share is `\\<player>\Internal Storage\mpdoutput\backups`), open the plugin settings and restore it. The file contains the Icecast source password; it is written readable by the owner only, and it should be kept private wherever it is copied.
+
 ## Where things live on the player
 
 | What | Where |
@@ -43,6 +51,7 @@ After updating the plugin from the store, restart Volumio (or reboot) so the new
 | Relay settings (written by the plugin, contains the source password, mode 0600) | `/data/configuration/audio_interface/mpdoutput/relay.json` |
 | Relay service | `mpd-output-relay.service`, log: `journalctl -u mpd-output-relay` |
 | Relay status | `/run/mpd-output/status.json` (connection state, last error, current title and its source) |
+| Settings backups | `/data/INTERNAL/mpdoutput/backups/*.json` (kept on uninstall) |
 | MPD outputs | added to Volumio's generated `/etc/mpd.conf` under the comment `# mpdoutput plugin: streaming outputs`; written by Volumio, not by the plugin |
 
 The MPD outputs are contributed through Volumio's own MPD configuration writer, so they survive output-device and playback-option changes and disappear when the plugin is disabled or uninstalled.
@@ -56,7 +65,8 @@ Titles are sent to the server as UTF-8. For MP3 mounts Icecast re-encodes them t
 ## Development
 
 ```
-npm test               # static checks: syntax, JSON, UI keys and translations
+npm test               # static checks: syntax, JSON, UI keys and translations (no dependencies needed)
+npm run test:backup    # settings backup/restore against a stubbed Volumio (needs npm install)
 ```
 
 The relay can be run standalone for diagnosis:
