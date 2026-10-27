@@ -297,7 +297,7 @@ MpdOutput.prototype.onVolumioState = function (state) {
     const title = screenTitle(state);
     if (!title) return;
     const c = net.connect(RELAY_CONTROL_SOCKET);
-    c.on('error', () => {}); // relay not running (Icecast stream off): nothing to update
+    c.on('error', () => { }); // relay not running (Icecast stream off): nothing to update
     c.on('connect', () => {
         if (title !== this.lastLoggedTitle) { this.lastLoggedTitle = title; this.logger.info(LOG + 'title: ' + title); }
     });

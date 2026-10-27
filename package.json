@@ -13,11 +13,10 @@
     "icon": "fa-rss",
     "plugin_type": "audio_interface",
     "os": [
-      "buster",
       "bookworm"
     ],
-    "details": "Streams what Volumio plays over HTTP from the player and to an Icecast server. The Icecast feed is carried by a relay that survives server reboots and network outages without touching playback. The stream title is what the player shows on screen.",
-    "changelog": "3.0.0: Icecast is fed through a resilient relay instead of MPD's shout output: a server reboot, maintenance or network cut no longer freezes playback or requires a Volumio restart; the stream reconnects by itself. Settings are written through Volumio's MPD configuration instead of patching mpd.conf, survive device changes and are removed cleanly on disable and uninstall. The stream title is the track Volumio shows on screen, for MP3 as well as Ogg streams. Input validation, translated messages, no playback pause on save. Runs on Volumio 3 (buster) and Volumio 4 (bookworm).",
+    "details": "HTTP stream from the player and Icecast publishing through a relay that survives server reboots and network cuts. The stream title is what the player shows.",
+    "changelog": "3.0.0 - Icecast via resilient relay (no more frozen playback), settings through Volumio's MPD config, on-screen title in the stream, new owner.",
     "architectures": [
       "amd64",
       "armhf"
@@ -28,8 +27,8 @@
     "v-conf": "^1.4.2"
   },
   "engines": {
-    "volumio": ">=3",
-    "node": ">=14.15.4"
+    "volumio": ">=4",
+    "node": ">=20"
   },
   "repository": "https://github.com/foonerd/mpd-output"
 }
