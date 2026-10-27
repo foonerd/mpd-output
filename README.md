@@ -7,9 +7,11 @@ Store name: `mpdoutput` (category `audio_interface`). Existing installations upg
 ## What it does
 
 - **HTTP stream** — MPD serves the encoded audio on a port of your choice. Any player on the network opens `http://<player>:<port>/`. Encoders: MP3, Ogg Vorbis, Ogg Opus, FLAC.
-- **Icecast** — the encoded audio is published on a mount of an Icecast 2 server. Encoders: Ogg Vorbis, Ogg Opus, MP3. Track titles reach the server for Vorbis (in-band) and MP3 (through Icecast's metadata interface). Icecast 2.4 does not expose titles for Opus mounts; listeners still receive the audio.
+- **Icecast** — the encoded audio is published on a mount of an Icecast 2 server. Encoders: Ogg Vorbis, Ogg Opus, MP3. The title Volumio shows on screen (`Artist - Title`) is sent to the server on every track change, for all encoders; Icecast 2.4 applies it to Vorbis and MP3 mounts and ignores it for Opus (listeners still receive the audio).
 
 Both streams follow playback, pause and stop. While stopped, listeners stay connected and hear silence.
+
+**What is in the stream.** Everything MPD renders: the music library, web radio, UPnP, and the streaming services Volumio plays through MPD. Services that bring their own player (Spotify Connect, AirPlay, Bluetooth, Tidal Connect, multiroom) do not pass through MPD and are not in the stream. The stream level is MPD's output before Volumio's volume stage, so it does not follow the player volume.
 
 ## How the Icecast stream stays up
 
@@ -38,7 +40,7 @@ Saving restarts MPD; playback resumes from the current track.
 | Settings | `/data/configuration/audio_interface/mpdoutput/config.json` |
 | Relay settings (written by the plugin, contains the source password, mode 0600) | `/data/configuration/audio_interface/mpdoutput/relay.json` |
 | Relay service | `mpd-output-relay.service`, log: `journalctl -u mpd-output-relay` |
-| Relay status | `/run/mpd-output/status.json` |
+| Relay status | `/run/mpd-output/status.json` (connection state, last error, current title and its source) |
 | MPD outputs | added to Volumio's generated `/etc/mpd.conf` under the comment `# mpdoutput plugin: streaming outputs`; written by Volumio, not by the plugin |
 
 The MPD outputs are contributed through Volumio's own MPD configuration writer, so they survive output-device and playback-option changes and disappear when the plugin is disabled or uninstalled.
@@ -50,13 +52,13 @@ Volumio 4 (bookworm) with MPD built with the `httpd` output plugin (every Volumi
 ## Development
 
 ```
-npm test               # syntax check of index.js and relay/relay.js
+npm test               # static checks: syntax, JSON, UI keys and translations
 ```
 
 The relay can be run standalone for diagnosis:
 
 ```
-node relay/relay.js /data/configuration/audio_interface/mpdoutput/relay.json --status /tmp/status.json
+node relay/relay.js /data/configuration/audio_interface/mpdoutput/relay.json --status /tmp/status.json --control /tmp/control.sock
 ```
 
 ## Credits

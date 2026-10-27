@@ -10,6 +10,7 @@
 
 const libQ = require('kew');
 const fs = require('fs');
+const net = require('net');
 const path = require('path');
 const { exec } = require('child_process');
 const VConf = require('v-conf');
@@ -18,6 +19,7 @@ const PLUGIN_TYPE = 'audio_interface';
 const PLUGIN_NAME = 'mpdoutput';
 const SERVICE = 'mpd-output-relay.service';
 const RELAY_STATUS_FILE = '/run/mpd-output/status.json';
+const RELAY_CONTROL_SOCKET = '/run/mpd-output/control.sock';
 const MPD_CONF = '/etc/mpd.conf';
 const MARKER = '# mpdoutput plugin: streaming outputs (managed by the plugin, do not edit)';
 const FEED_NAME = 'mpdoutput-icecast-feed';
@@ -50,6 +52,7 @@ MpdOutput.prototype.onStart = function () {
     self.commandRouter.loadI18nStrings();
     self.registerMpdHook();
     self.migrateLegacySettings();
+    self.subscribeState();
 
     // At boot the MPD plugin writes mpd.conf itself (with this hook in it) and restarts MPD;
     // checking before that write has landed would restart MPD a second time. Wait for the
@@ -79,6 +82,7 @@ MpdOutput.prototype.onStop = function () {
     const self = this;
     self.active = false;
     self.unregisterMpdHook();
+    self.unsubscribeState();
     return self.systemctl('stop')
         .fail(() => undefined)
         .then(() => (self.mpdConfIsCurrent() ? libQ.resolve() : self.rewriteMpdConf()))
@@ -164,7 +168,8 @@ MpdOutput.prototype.getMpdConfig = function () {
             ['port', c.get('icefeedport', '8010')],
         ];
         pushBitrate(lines, encoder, c.get('icebitrate', '192'));
-        lines.push(['format', c.get('iceformat', '44100:16:2')], ['max_clients', '2'], ['always_on', 'yes'], ['tags', 'yes']);
+        // No MPD tags on the feed: the title Volumio shows on screen is sent to the server by the plugin.
+        lines.push(['format', c.get('iceformat', '44100:16:2')], ['max_clients', '2'], ['always_on', 'yes'], ['tags', 'no']);
         out += block(lines);
     }
     return out;
@@ -258,10 +263,50 @@ MpdOutput.prototype.applyRelay = function () {
         self.toast('error', 'ERR_RELAY', { error: e.message });
         return libQ.resolve();
     }
-    return self.systemctl('restart').fail((e) => {
+    return self.systemctl('restart').then(() => {
+        self.lastSentTitle = null;
+        setTimeout(() => self.onVolumioState(self.currentState()), 1500); // relay just started: seed its title
+    }).fail((e) => {
         self.toast('error', 'ERR_RELAY', { error: e.message });
     });
 };
+
+// ------------------------------------------------------- title: what the screen shows
+
+MpdOutput.prototype.subscribeState = function () {
+    if (this.stateCallback) return;
+    this.stateCallback = (state) => this.onVolumioState(state);
+    this.commandRouter.addCallback('volumioPushState', this.stateCallback);
+};
+
+// The backend has no removeCallback; a left-over closure would outlive this instance.
+MpdOutput.prototype.unsubscribeState = function () {
+    const all = this.commandRouter.callbacks;
+    if (this.stateCallback && all && Array.isArray(all.volumioPushState)) {
+        all.volumioPushState = all.volumioPushState.filter((f) => f !== this.stateCallback);
+    }
+    this.stateCallback = null;
+};
+
+MpdOutput.prototype.currentState = function () {
+    try { return this.commandRouter.volumioGetState(); } catch (e) { return null; }
+};
+
+MpdOutput.prototype.onVolumioState = function (state) {
+    if (!this.active || !state || state.status !== 'play') return;
+    const title = screenTitle(state);
+    if (!title || title === this.lastSentTitle) return;
+    this.lastSentTitle = title;
+    const c = net.connect(RELAY_CONTROL_SOCKET);
+    c.on('error', () => { this.lastSentTitle = null; }); // relay not running: retry on the next state
+    c.end(JSON.stringify({ title }) + '\n');
+};
+
+function screenTitle(state) {
+    const title = String(state.title || '').trim();
+    const artist = String(state.artist || '').trim();
+    return artist && title ? artist + ' - ' + title : (title || artist);
+}
 
 MpdOutput.prototype.systemctl = function (verb) {
     const self = this;

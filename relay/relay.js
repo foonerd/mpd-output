@@ -10,7 +10,10 @@
  * the kernel buffer is full, and the connection is torn down and retried
  * with backoff. Node core only, no dependencies.
  *
- *   relay.js <config.json> [--status <status.json>]
+ *   relay.js <config.json> [--status <status.json>] [--control <socket>]
+ *
+ * --control: Unix socket taking newline-delimited JSON {"title": "Artist - Title"} from the
+ * plugin, i.e. what Volumio shows on screen. Until the first one arrives, MPD's ICY title is used.
  */
 const fs = require('fs');
 const net = require('net');
@@ -23,8 +26,10 @@ const VERSION = '3.0.0';
 const cfgPath = process.argv[2];
 const statusIdx = process.argv.indexOf('--status');
 const statusPath = statusIdx > 0 ? process.argv[statusIdx + 1] : null;
+const controlIdx = process.argv.indexOf('--control');
+const controlPath = controlIdx > 0 ? process.argv[controlIdx + 1] : null;
 if (!cfgPath) {
-    console.error('usage: relay.js <config.json> [--status <status.json>]');
+    console.error('usage: relay.js <config.json> [--status <status.json>] [--control <socket>]');
     process.exit(2);
 }
 
@@ -45,7 +50,7 @@ const log = (level, msg, extra) => {
     (level === 'error' ? console.error : console.log)(line);
 };
 
-const status = { version: VERSION, mpd: 'disconnected', icecast: 'disconnected', since: null, lastError: null, bytesRelayed: 0, reconnects: 0 };
+const status = { version: VERSION, mpd: 'disconnected', icecast: 'disconnected', since: null, lastError: null, bytesRelayed: 0, reconnects: 0, title: null, titleSource: null };
 let statusTimer = null;
 const publishStatus = () => {
     if (!statusPath) return;
@@ -67,7 +72,10 @@ let mpdWaitLogged = 0;
 let stallTicker = null;
 // ICY metadata interleaved by MPD's MP3 stream: stripped here, forwarded to Icecast's admin interface.
 let icy = null; // { metaint, toNext, metaLen, metaBuf }
-let lastTitle = null;
+let icyTitle = null;      // from MPD's stream (fallback)
+let volumioTitle = null;  // from the plugin over the control socket (what the screen shows)
+let pushedTitle = null;   // last title sent to this Icecast session
+let controlServer = null;
 // Bytes of the current MPD session that had no Icecast peer. Ogg encoders send their header pages
 // once, at connect; if those were dropped the session is reopened once Icecast is ready.
 let mpdDropped = 0;
@@ -108,7 +116,7 @@ function connectMpd() {
         contentType = m ? m[1].trim() : 'application/octet-stream';
         const mi = /^icy-metaint:\s*(\d+)/im.exec(head);
         icy = mi && parseInt(mi[1], 10) > 0 ? { metaint: parseInt(mi[1], 10), toNext: parseInt(mi[1], 10), metaLen: -1, metaBuf: Buffer.alloc(0) } : null;
-        lastTitle = null;
+        icyTitle = null;
         mpdDropped = 0;
         inBody = true;
         mpdAttempt = 0;
@@ -117,6 +125,7 @@ function connectMpd() {
         publishStatus();
         log('info', 'mpd: stream open', { contentType, icyMetaint: icy ? icy.metaint : 0 });
         connectIcecast();
+        if (iceSock && iceSock.ready) syncTitle(); // feed reopened under a live Icecast session
         const rest = headerBuf.subarray(end + 4);
         headerBuf = Buffer.alloc(0);
         if (rest.length) onStream(rest);
@@ -198,10 +207,44 @@ function onStream(chunk) {
 function onIcyMetadata(text) {
     const m = /StreamTitle='((?:[^']|'(?!;))*)';/.exec(text);
     if (!m) return;
-    const title = m[1].trim();
-    if (title === lastTitle) return;
-    lastTitle = title;
+    icyTitle = m[1].trim();
+    syncTitle();
+}
+
+// Volumio's title wins once seen; MPD's ICY title covers the time before the plugin sent one.
+function syncTitle() {
+    const title = volumioTitle !== null ? volumioTitle : icyTitle;
+    const source = volumioTitle !== null ? 'volumio' : (icyTitle !== null ? 'mpd' : null);
+    if (status.title !== title || status.titleSource !== source) { status.title = title; status.titleSource = source; publishStatus(); }
+    if (!title || title === pushedTitle || !iceSock || !iceSock.ready) return;
+    pushedTitle = title;
     pushTitle(title);
+}
+
+// Control socket: the plugin sends {"title": "..."} on every Volumio state change.
+function startControl() {
+    if (!controlPath) return;
+    try { fs.unlinkSync(controlPath); } catch (e) { /* no stale socket */ }
+    controlServer = net.createServer((c) => {
+        let buf = '';
+        c.setEncoding('utf8');
+        c.on('data', (d) => {
+            buf += d;
+            if (buf.length > 65536) { buf = ''; c.destroy(); return; }
+            let nl;
+            while ((nl = buf.indexOf('\n')) >= 0) {
+                const line = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1);
+                if (!line) continue;
+                try {
+                    const msg = JSON.parse(line);
+                    if (typeof msg.title === 'string') { volumioTitle = msg.title.slice(0, 500); syncTitle(); }
+                } catch (e) { log('warn', 'control: bad message'); }
+            }
+        });
+        c.on('error', () => { });
+    });
+    controlServer.on('error', (e) => log('error', 'control: socket', { error: e.code || e.message }));
+    controlServer.listen(controlPath, () => { fs.chmodSync(controlPath, 0o600); log('info', 'control: listening', { path: controlPath }); });
 }
 
 // Icecast accepts the mount's source credentials on /admin/metadata.
@@ -286,8 +329,9 @@ function connectIcecast() {
             publishStatus();
             log('info', 'icecast: source accepted', { mount: ic.mount, host: ic.host, port: ic.port });
             startStallTicker();
+            pushedTitle = null; // new session, Icecast knows nothing yet
             if (mpdDropped > 0) { reopenMpd(); return; }
-            if (icy && lastTitle) pushTitle(lastTitle);
+            syncTitle();
         } else {
             status.lastError = `icecast: ${statusLine}${reason ? ' - ' + reason : ''}`;
             log('error', 'icecast: rejected', { statusLine, reason });
@@ -367,6 +411,7 @@ function shutdown(sig) {
     stopping = true;
     log('info', `relay: ${sig}, shutting down`);
     clearTimeout(iceTimer); clearTimeout(mpdTimer); stopStallTicker();
+    if (controlServer) { controlServer.close(); try { fs.unlinkSync(controlPath); } catch (e) { /* already gone */ } }
     if (iceSock) iceSock.destroy();
     if (mpdSock) mpdSock.destroy();
     setTimeout(() => process.exit(0), 200).unref();
@@ -377,4 +422,5 @@ process.on('uncaughtException', (e) => { log('error', 'relay: uncaught', { messa
 
 log('info', 'relay: starting', { version: VERSION, source: cfg.source, icecast: { host: cfg.icecast.host, port: cfg.icecast.port, mount: cfg.icecast.mount, tls: !!cfg.icecast.tls } });
 publishStatus();
+startControl();
 connectMpd();
